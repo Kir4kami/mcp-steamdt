@@ -9,17 +9,15 @@
 
 ## 🚀 快速开始
 
-### 方式一：直接使用 uvx（推荐，最简单）✨
+### 方式一：直接从 GitHub 安装（推荐，最简单）✨
 
-无需克隆仓库，直接使用：
+无需克隆仓库，直接用 pip 安装：
 
 ```bash
-# 1. 安装 uv（如果还没有）
-pip install uv
-
-# 2. 在 MCP 客户端配置中使用 uvx
-# 见下面的配置说明
+pip install git+https://github.com/Kir4kami/mcp-steamdt.git
 ```
+
+然后在 MCP 客户端配置中使用（见下面的配置说明）。
 
 ### 方式二：克隆仓库安装（开发模式）
 
@@ -65,13 +63,13 @@ STEAMDT_BASE_URL=https://open.steamdt.com
 
 2. 编辑配置文件，添加：
 
-**使用 uvx（推荐，最简单）：**
+**直接从 GitHub 安装后使用（推荐）：**
 ```json
 {
   "mcpServers": {
     "steamdt": {
-      "command": "uvx",
-      "args": ["steamdt-mcp"],
+      "command": "python",
+      "args": ["-m", "steamdt_mcp.server"],
       "env": {
         "STEAMDT_API_KEY": "你的密钥",
         "STEAMDT_BASE_URL": "https://open.steamdt.com"
@@ -81,7 +79,7 @@ STEAMDT_BASE_URL=https://open.steamdt.com
 }
 ```
 
-**或使用传统方式（需要克隆仓库）：**
+**或使用克隆仓库方式（开发模式）：**
 ```json
 {
   "mcpServers": {
