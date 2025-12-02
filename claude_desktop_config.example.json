@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "steamdt": {
+      "command": "python",
+      "args": ["-m", "steamdt_mcp.server"],
+      "env": {
+        "STEAMDT_API_KEY": "在这里填入你的 SteamDT API 密钥",
+        "STEAMDT_BASE_URL": "https://open.steamdt.com"
+      }
+    }
+  }
+}
+

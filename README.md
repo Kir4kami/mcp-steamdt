@@ -2,6 +2,45 @@
 
 一个基于 Python 的 SteamDT 行情 / 数据分析 MCP 服务端，用于让支持 MCP 的大模型（如 Claude 等）可以直接调用 SteamDT 的开放接口，查询饰品行情并做基础分析。
 
+### 快速开始
+
+1. **克隆仓库并安装依赖**
+   ```bash
+   git clone https://github.com/Kir4kami/mcp-steamdt.git
+   cd mcp-steamdt
+   pip install -r requirements.txt
+   ```
+
+2. **配置 API 密钥**
+   
+   在项目根目录创建 `.env` 文件：
+   ```bash
+   STEAMDT_API_KEY=你的密钥
+   ```
+
+3. **在 MCP 客户端中配置**
+   
+   编辑 Claude Desktop 配置文件（或其他 MCP 客户端），添加：
+   ```json
+   {
+     "mcpServers": {
+       "steamdt": {
+         "command": "python",
+         "args": ["-m", "steamdt_mcp.server"],
+         "env": {
+           "STEAMDT_API_KEY": "你的密钥"
+         }
+       }
+     }
+   }
+   ```
+
+4. **开始使用**
+   
+   重启客户端后，就可以在对话中让 AI 查询饰品价格、磨损度等信息了！
+
+> 📖 **详细使用指南**：查看 [USAGE.md](USAGE.md) 获取更详细的配置说明和使用示例。
+
 > ⚠️ 注意：
 > - 本项目未内置你的 API 密钥，也不会帮你绕过任何平台限制。请在遵守 SteamDT 官方服务条款的前提下使用。
 > - 本项目**只提供数据获取与基础统计功能，不做任何主观推荐或投资建议**；如何解读和使用这些数据，应由上层应用或用户自行决定。
@@ -25,14 +64,37 @@
 
 ### 安装
 
-```bash
-git clone <your-repo-url>
-cd mcp-steamDT
+#### 方式一：使用 Git Clone
 
+```bash
+# 克隆仓库
+git clone https://github.com/Kir4kami/mcp-steamdt.git
+cd mcp-steamdt
+
+# 创建虚拟环境（推荐）
+python -m venv .venv
+
+# 激活虚拟环境
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+
+# 安装依赖
 pip install -r requirements.txt
 ```
 
-建议使用虚拟环境（如 `venv` 或 `conda`）。
+#### 方式二：使用 uv（推荐，更快）
+
+```bash
+# 克隆仓库
+git clone https://github.com/Kir4kami/mcp-steamdt.git
+cd mcp-steamdt
+
+# 创建虚拟环境并安装依赖
+uv venv
+uv pip install -r requirements.txt
+```
 
 ### 配置
 
@@ -72,7 +134,58 @@ python -m steamdt_mcp.server
 
 ### 在 MCP 客户端中配置
 
-以下是一个**示例**配置（具体格式视你的 MCP 客户端而定，下面是偏向 JSON 风格的示例）：
+#### Claude Desktop (推荐)
+
+1. 找到 Claude Desktop 的配置文件位置：
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+2. 编辑配置文件，添加以下内容：
+
+```json
+{
+  "mcpServers": {
+    "steamdt": {
+      "command": "python",
+      "args": ["-m", "steamdt_mcp.server"],
+      "env": {
+        "STEAMDT_API_KEY": "你的实际密钥",
+        "STEAMDT_BASE_URL": "https://open.steamdt.com"
+      }
+    }
+  }
+}
+```
+
+> **注意**：如果使用虚拟环境，需要将 `command` 改为虚拟环境中 Python 的完整路径，例如：
+> - Windows: `"command": "F:\\mymcp\\mcp-steamdt\\.venv\\Scripts\\python.exe"`
+> - macOS/Linux: `"command": "/path/to/mcp-steamdt/.venv/bin/python"`
+
+3. 重启 Claude Desktop，MCP 服务器会自动启动。
+
+#### Cursor IDE
+
+在 Cursor 的设置中，找到 MCP 配置，添加：
+
+```json
+{
+  "mcpServers": {
+    "steamdt": {
+      "command": "python",
+      "args": ["-m", "steamdt_mcp.server"],
+      "env": {
+        "STEAMDT_API_KEY": "你的实际密钥",
+        "STEAMDT_BASE_URL": "https://open.steamdt.com"
+      }
+    }
+  }
+}
+```
+
+#### 其他 MCP 客户端
+
+对于其他支持 MCP 的客户端，配置格式类似：
 
 ```json
 {
@@ -81,17 +194,56 @@ python -m steamdt_mcp.server
   "args": ["-m", "steamdt_mcp.server"],
   "env": {
     "STEAMDT_API_KEY": "你的实际密钥",
-    "STEAMDT_BASE_URL": "https://api.steamdt.com"
+    "STEAMDT_BASE_URL": "https://open.steamdt.com"
   }
 }
 ```
 
+### 使用示例
+
 配置完成后，你就可以在聊天中让模型执行类似指令：
 
-- “查询 AWP | Dragon Lore（略）最近 30 天的价格走势并给出一个趋势分析。”
-- “看看这几个饰品最近哪一个性价比更高，按你自己的标准给个排序。”
+#### 基础查询
+
+- "查询 `AWP | Pit Viper (Minimal Wear)` 的当前价格"
+- "批量查询这几个饰品的价格：`AK-47 | Redline (Field-Tested)`, `M4A4 | Howl (Factory New)`"
+- "获取所有饰品的基础信息，帮我找一个叫 'Dragon Lore' 的饰品"
+
+#### 磨损度查询
+
+- "通过这个检视链接查询磨损度：`steam://rungame/730/...`"
+- "使用 ASMD 参数查询磨损度：`{...}`"
+
+#### 数据分析
+
+- "分析 `AWP | Dragon Lore` 最近 30 天的价格走势"
+- "对比这几个饰品的价格，看看哪个性价比更高"
 
 模型会自动调用 MCP 中的工具，与 SteamDT 通信获取数据。
+
+### 常见问题
+
+#### Q: 如何确认 MCP 服务器是否正常运行？
+
+A: 在项目目录下运行 `python -m steamdt_mcp.server`，如果看到服务器启动信息且没有报错，说明配置正确。
+
+#### Q: 虚拟环境中的 Python 路径怎么找？
+
+A: 
+- Windows: 虚拟环境目录下的 `Scripts\python.exe`
+- macOS/Linux: 虚拟环境目录下的 `bin/python`
+
+#### Q: 如何更新基础信息缓存？
+
+A: 调用 `get_item_base_info` 时设置 `force_refresh=True`，但需注意该接口每天只能调用一次。
+
+#### Q: 批量查询最多可以查询多少个饰品？
+
+A: 请参考 SteamDT 官方文档的接口限制。建议每次查询不超过 10-20 个饰品。
+
+#### Q: 磨损度查询返回的 taskId 是什么？
+
+A: 某些查询可能是异步的，返回 `taskId` 表示任务已提交。你可以通过 `taskId` 查询结果，或等待回调通知（如果配置了 `notifyUrl`）。
 
 ### 开发计划
 
@@ -99,7 +251,6 @@ python -m steamdt_mcp.server
 - [x] 基础信息与价格查询工具
 - [x] 批量价格查询
 - [x] 磨损度查询（检视链接 + ASMD 参数）
-- [x] 检视图生成（检视链接 + ASMD 参数）
 - [ ] 价格历史查询接口完善（等待官方文档）
 - [ ] 增加更丰富的分析维度（波动率、极值、回撤等）
 
