@@ -45,9 +45,10 @@ async def _fetch_json(
     method: str,
     url: str,
     params: Optional[Dict[str, Any]] = None,
+    json_data: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """简单封装 HTTP 请求，返回 JSON，出错时抛异常。"""
-    resp = await client.request(method, url, params=params)
+    resp = await client.request(method, url, params=params, json=json_data)
     try:
         resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
@@ -331,6 +332,127 @@ async def analyze_item_trend(
         },
         "raw": history,
     }
+
+
+@mcp.tool()
+async def get_item_prices_batch(
+    ctx: Context,
+    market_hash_names: List[str],
+) -> Dict[str, Any]:
+    """
+    批量查询多个饰品的价格信息。
+
+    文档地址: https://doc.steamdt.com/278832831e0
+
+    对应接口:
+      - POST /open/cs2/v1/price/batch
+      - Body 参数:
+        - marketHashNames (array of string, required): 饰品名称数组
+
+    权限限制: 每分钟1次
+
+    返回:
+      - 与官方文档一致的 JSON 对象:
+        - success: 是否成功
+        - data: 数组，每项包含 marketHashName 和 dataList（平台价格列表）
+        - errorCode / errorMsg / errorData / errorCodeStr 等错误信息字段
+    """
+    if not market_hash_names:
+        raise ValueError("market_hash_names 不能为空，至少需要一个饰品名称。")
+    if not isinstance(market_hash_names, list):
+        raise ValueError("market_hash_names 必须是一个字符串数组。")
+
+    config = SteamDTConfig.from_env()
+    async with get_client(config) as client:
+        data = await _fetch_json(
+            client,
+            "POST",
+            "/open/cs2/v1/price/batch",
+            json_data={"marketHashNames": market_hash_names},
+        )
+    await ctx.log(
+        f"get_item_prices_batch 调用了 SteamDT /open/cs2/v1/price/batch, count={len(market_hash_names)}"
+    )
+    return data
+
+
+@mcp.tool()
+async def get_item_wear_by_inspect_url(
+    ctx: Context,
+    inspect_url: str,
+) -> Dict[str, Any]:
+    """
+    通过检视链接查询饰品的磨损度相关数据。
+
+    文档地址: https://doc.steamdt.com/273806087e0
+
+    对应接口:
+      - POST /open/cs2/v1/wear
+      - Body 参数:
+        - inspectUrl (string, required): Steam 检视链接
+
+    权限限制: 每小时36000次
+
+    返回:
+      - 与官方文档一致的 JSON 对象:
+        - success: 是否成功
+        - data: 包含 needWaiting、taskId、blockDTO（磨损度数据）等
+        - errorCode / errorMsg / errorData / errorCodeStr 等错误信息字段
+    """
+    if not inspect_url:
+        raise ValueError("inspect_url 不能为空。")
+
+    config = SteamDTConfig.from_env()
+    async with get_client(config) as client:
+        data = await _fetch_json(
+            client,
+            "POST",
+            "/open/cs2/v1/wear",
+            json_data={"inspectUrl": inspect_url},
+        )
+    await ctx.log(
+        f"get_item_wear_by_inspect_url 调用了 SteamDT /open/cs2/v1/wear, inspectUrl={inspect_url[:50]}..."
+    )
+    return data
+
+
+@mcp.tool()
+async def get_item_wear_by_asmd(
+    ctx: Context,
+    asmd_params: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    通过 ASMD 参数查询饰品的磨损度相关数据。
+
+    文档地址: https://doc.steamdt.com/273806088e0
+
+    对应接口:
+      - POST /open/cs2/v2/wear
+      - Body 参数: ASMD 相关参数字典（具体字段请参考官方文档）
+
+    权限限制: 每小时36000次
+
+    返回:
+      - 与官方文档一致的 JSON 对象:
+        - success: 是否成功
+        - data: 包含 needWaiting、taskId、blockDTO（磨损度数据）等
+        - errorCode / errorMsg / errorData / errorCodeStr 等错误信息字段
+    """
+    if not asmd_params or not isinstance(asmd_params, dict):
+        raise ValueError("asmd_params 必须是一个非空字典。")
+
+    config = SteamDTConfig.from_env()
+    async with get_client(config) as client:
+        data = await _fetch_json(
+            client,
+            "POST",
+            "/open/cs2/v2/wear",
+            json_data=asmd_params,
+        )
+    await ctx.log(
+        f"get_item_wear_by_asmd 调用了 SteamDT /open/cs2/v2/wear"
+    )
+    return data
 
 
 if __name__ == "__main__":
