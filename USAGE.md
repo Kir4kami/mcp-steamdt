@@ -9,7 +9,21 @@
 
 ## 🚀 快速开始
 
-### 1. 安装
+### 方式一：直接使用 uvx（推荐，最简单）✨
+
+无需克隆仓库，直接使用：
+
+```bash
+# 1. 安装 uv（如果还没有）
+pip install uv
+
+# 2. 在 MCP 客户端配置中使用 uvx
+# 见下面的配置说明
+```
+
+### 方式二：克隆仓库安装（开发模式）
+
+如果你想修改代码或参与开发：
 
 ```bash
 # 克隆仓库
@@ -51,6 +65,23 @@ STEAMDT_BASE_URL=https://open.steamdt.com
 
 2. 编辑配置文件，添加：
 
+**使用 uvx（推荐，最简单）：**
+```json
+{
+  "mcpServers": {
+    "steamdt": {
+      "command": "uvx",
+      "args": ["steamdt-mcp"],
+      "env": {
+        "STEAMDT_API_KEY": "你的密钥",
+        "STEAMDT_BASE_URL": "https://open.steamdt.com"
+      }
+    }
+  }
+}
+```
+
+**或使用传统方式（需要克隆仓库）：**
 ```json
 {
   "mcpServers": {
@@ -66,7 +97,9 @@ STEAMDT_BASE_URL=https://open.steamdt.com
 }
 ```
 
-> **提示**：如果使用虚拟环境，将 `command` 改为虚拟环境中 Python 的完整路径
+> **提示**：
+> - 使用 `uvx` 方式：无需克隆仓库，`uvx` 会自动下载最新版本
+> - 使用传统方式：如果使用虚拟环境，将 `command` 改为虚拟环境中 Python 的完整路径
 
 3. 重启 Claude Desktop
 

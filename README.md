@@ -4,29 +4,22 @@
 
 ### 快速开始
 
-1. **克隆仓库并安装依赖**
+#### 最简单的方式（推荐）✨
+
+1. **安装 uv（如果还没有）**
    ```bash
-   git clone https://github.com/Kir4kami/mcp-steamdt.git
-   cd mcp-steamdt
-   pip install -r requirements.txt
+   pip install uv
    ```
 
-2. **配置 API 密钥**
-   
-   在项目根目录创建 `.env` 文件：
-   ```bash
-   STEAMDT_API_KEY=你的密钥
-   ```
-
-3. **在 MCP 客户端中配置**
+2. **在 MCP 客户端中配置**
    
    编辑 Claude Desktop 配置文件（或其他 MCP 客户端），添加：
    ```json
    {
      "mcpServers": {
        "steamdt": {
-         "command": "python",
-         "args": ["-m", "steamdt_mcp.server"],
+         "command": "uvx",
+         "args": ["steamdt-mcp"],
          "env": {
            "STEAMDT_API_KEY": "你的密钥"
          }
@@ -35,9 +28,15 @@
    }
    ```
 
-4. **开始使用**
+3. **开始使用**
    
    重启客户端后，就可以在对话中让 AI 查询饰品价格、磨损度等信息了！
+
+> **注意**：`uvx` 会自动下载和运行最新版本的 `steamdt-mcp`，无需手动安装或克隆仓库。
+
+#### 传统方式（需要克隆仓库）
+
+如果你需要修改代码或使用开发版本，可以克隆仓库后按照 [安装](#安装) 部分的说明进行配置。
 
 > 📖 **详细使用指南**：查看 [USAGE.md](USAGE.md) 获取更详细的配置说明和使用示例。
 
@@ -64,7 +63,37 @@
 
 ### 安装
 
-#### 方式一：使用 Git Clone
+#### 方式一：直接使用 uvx（推荐，最简单）✨
+
+无需克隆仓库，直接使用 `uvx` 运行：
+
+```bash
+# 确保已安装 uv
+pip install uv
+
+# 直接运行（uvx 会自动下载和运行）
+uvx steamdt-mcp
+```
+
+在 MCP 客户端配置中直接使用：
+
+```json
+{
+  "mcpServers": {
+    "steamdt": {
+      "command": "uvx",
+      "args": ["steamdt-mcp"],
+      "env": {
+        "STEAMDT_API_KEY": "你的密钥"
+      }
+    }
+  }
+}
+```
+
+#### 方式二：使用 Git Clone（开发模式）
+
+如果你想修改代码或参与开发：
 
 ```bash
 # 克隆仓库
@@ -84,7 +113,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-#### 方式二：使用 uv（推荐，更快）
+#### 方式三：使用 uv（开发模式，更快）
 
 ```bash
 # 克隆仓库

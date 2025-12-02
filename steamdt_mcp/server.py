@@ -455,8 +455,13 @@ async def get_item_wear_by_asmd(
     return data
 
 
+def main():
+    """MCP 服务器入口函数，用于命令行和 PyPI 安装后的直接调用。"""
+    mcp.run()
+
+
 if __name__ == "__main__":
     # 入口：以 CLI 形式启动 MCP 服务器
-    mcp.run()
+    main()
 
 
