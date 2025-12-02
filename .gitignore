@@ -28,6 +28,10 @@ env/
 .DS_Store
 Thumbs.db
 
-# MCP cache (optional, user can choose to commit or ignore)
+# MCP cache (用户本地缓存，不应提交)
 steam_items_base.json
+
+# Test scripts (测试脚本，不应提交)
+test_*.py
+test_*.pyc
 
