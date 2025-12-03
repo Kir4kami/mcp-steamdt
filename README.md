@@ -48,16 +48,17 @@
 
 #### 基础信息与价格查询
 - `get_item_base_info`：获取所有饰品的基础信息（名称、marketHashName 等）。**自动管理本地缓存**，首次调用会请求 API 并保存，后续优先使用缓存，无需担心每天限 1 次的限制。
+- `search_item_by_name`：根据中文名或英文名搜索饰品，返回匹配的 `market_hash_name`。特别适合只知道中文名的情况。
 - `get_item_price`：根据 `market_hash_name` 查询单个饰品的当前价格信息（每分钟60次）。
 - `get_item_prices_batch`：批量查询多个饰品的价格信息（每分钟1次）。
+- `get_item_price_history`：查询指定饰品最近若干天的价格历史（30天均价数据）。
 
 #### 磨损度查询
 - `get_item_wear_by_inspect_url`：通过检视链接查询饰品的磨损度相关数据（每小时36000次）。
 - `get_item_wear_by_asmd`：通过 ASMD 参数查询饰品的磨损度相关数据（每小时36000次）。
 
-#### 数据分析（实验性）
-- `get_item_price_history`：查询最近若干天的价格历史数据（接口待完善）。
-- `analyze_item_trend`：基于历史价格做一个简单的趋势分析（涨跌、波动等），返回总结文本，方便 AI 继续加工。
+#### 价格历史查询
+- `get_item_price_history`：查询最近若干天的价格历史数据（30天均价）。根据 `market_hash_name` 和 `days` 参数查询各平台的30天平均价格。
 
 > 所有接口均基于 SteamDT 官方文档实现：`https://doc.steamdt.com/`。权限限制请参考官方文档。
 
@@ -239,9 +240,9 @@ python -m steamdt_mcp.server
 - "通过这个检视链接查询磨损度：`steam://rungame/730/...`"
 - "使用 ASMD 参数查询磨损度：`{...}`"
 
-#### 数据分析
+#### 价格历史查询
 
-- "分析 `AWP | Dragon Lore` 最近 30 天的价格走势"
+- "查询 `AK-47 | The Empress (Factory New)` 最近 30 天的价格历史"
 - "对比这几个饰品的价格，看看哪个性价比更高"
 
 模型会自动调用 MCP 中的工具，与 SteamDT 通信获取数据。
@@ -276,8 +277,8 @@ A: 某些查询可能是异步的，返回 `taskId` 表示任务已提交。你�
 - [x] 基础信息与价格查询工具
 - [x] 批量价格查询
 - [x] 磨损度查询（检视链接 + ASMD 参数）
-- [ ] 价格历史查询接口完善（等待官方文档）
-- [ ] 增加更丰富的分析维度（波动率、极值、回撤等）
+- [x] 价格历史查询（30天均价）
+- [x] 饰品名称搜索功能
 
 欢迎 issue / PR 一起完善～ 
 

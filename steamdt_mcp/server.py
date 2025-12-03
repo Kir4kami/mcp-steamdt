@@ -119,7 +119,7 @@ async def get_item_base_info(
     if not force_refresh:
         cached = _load_base_info_cache()
         if cached is not None:
-            await ctx.log(f"get_item_base_info 使用了本地缓存（{BASE_INFO_CACHE_PATH.resolve()}）")
+            await ctx.log("info", f"get_item_base_info 使用了本地缓存（{BASE_INFO_CACHE_PATH.resolve()}）")
             # 添加缓存标记，方便上层应用识别
             result = cached.copy()
             result["_cached"] = True
@@ -129,34 +129,119 @@ async def get_item_base_info(
     config = SteamDTConfig.from_env()
     async with get_client(config) as client:
         try:
-            data = await _fetch_json(
-                client,
-                "GET",
-                "/open/cs2/v1/base",
-            )
-            # API 调用成功，保存缓存
-            if data.get("success") and isinstance(data.get("data"), list):
-                _save_base_info_cache(data)
-                await ctx.log(
-                    f"get_item_base_info 调用了 SteamDT API 并已保存缓存到 {BASE_INFO_CACHE_PATH.resolve()}"
-                )
-            return data
-        except RuntimeError as exc:
-            # 如果返回 4005（今天已调用），尝试返回缓存
-            error_str = str(exc)
-            if "4005" in error_str or "已达到上限" in error_str:
+            resp = await client.request("GET", "/open/cs2/v1/base")
+            # 先尝试解析 JSON，即使状态码不是 2xx
+            try:
+                data = resp.json()
+            except Exception:
+                data = {}
+            
+            # 检查是否是 4005 错误（API 限制）
+            if resp.status_code != 200 or data.get("errorCode") == 4005:
                 cached = _load_base_info_cache()
                 if cached is not None:
-                    await ctx.log(
-                        f"API 今日调用已达上限，已返回本地缓存（{BASE_INFO_CACHE_PATH.resolve()}）"
-                    )
+                    await ctx.log("info", f"API 今日调用已达上限，已返回本地缓存（{BASE_INFO_CACHE_PATH.resolve()}）")
                     result = cached.copy()
                     result["_cached"] = True
                     result["_api_limit_reached"] = True
-                    result["_api_error"] = error_str
+                    if resp.status_code != 200:
+                        result["_api_error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
+                    else:
+                        result["_api_error"] = data.get("errorMsg", "API limit reached")
                     return result
-            # 其他错误或没有缓存，直接抛出
-            raise
+                # 没有缓存，返回 API 错误
+                resp.raise_for_status()
+            
+            # API 调用成功，保存缓存
+            if data.get("success") and isinstance(data.get("data"), list):
+                _save_base_info_cache(data)
+                await ctx.log("info", f"get_item_base_info 调用了 SteamDT API 并已保存缓存到 {BASE_INFO_CACHE_PATH.resolve()}")
+            return data
+        except httpx.HTTPStatusError as exc:
+            # HTTP 错误，尝试返回缓存
+            cached = _load_base_info_cache()
+            if cached is not None:
+                await ctx.log("info", f"API 请求失败，已返回本地缓存（{BASE_INFO_CACHE_PATH.resolve()}）")
+                result = cached.copy()
+                result["_cached"] = True
+                result["_api_error"] = str(exc)
+                return result
+            raise RuntimeError(f"SteamDT API 请求失败: {exc}") from exc
+
+
+@mcp.tool()
+async def search_item_by_name(
+    ctx: Context,
+    query: str,
+    limit: int = 10,
+) -> Dict[str, Any]:
+    """
+    根据中文名或英文名搜索饰品，返回匹配的 market_hash_name。
+    
+    这个工具可以帮助用户找到正确的 market_hash_name，特别是当用户只知道中文名时。
+    
+    参数:
+      - query: 搜索关键词（可以是中文名、英文名或部分名称）
+      - limit: 返回结果的最大数量，默认 10
+    
+    返回:
+      - success: 是否成功
+      - data: 匹配的饰品列表，每项包含 name 和 marketHashName
+      - count: 匹配数量
+    """
+    if not query:
+        raise ValueError("query 不能为空。")
+    
+    # 从缓存加载基础信息
+    cached = _load_base_info_cache()
+    if cached is None:
+        return {
+            "success": False,
+            "errorCode": "NO_CACHE",
+            "errorMsg": "本地缓存不存在，请先调用 get_item_base_info 获取基础信息。",
+            "data": [],
+            "count": 0,
+        }
+    
+    items = cached.get("data") or []
+    if not isinstance(items, list):
+        return {
+            "success": False,
+            "errorCode": "INVALID_CACHE",
+            "errorMsg": "缓存数据格式无效。",
+            "data": [],
+            "count": 0,
+        }
+    
+    # 搜索匹配的饰品（不区分大小写）
+    query_lower = query.lower()
+    matches = []
+    
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        
+        name = item.get("name", "")
+        market_hash_name = item.get("marketHashName", "")
+        
+        # 检查是否匹配（中文名或英文名）
+        if query_lower in name.lower() or query_lower in market_hash_name.lower():
+            matches.append({
+                "name": name,
+                "marketHashName": market_hash_name,
+            })
+            
+            if len(matches) >= limit:
+                break
+    
+    await ctx.log("info", f"search_item_by_name 搜索了 '{query}'，找到 {len(matches)} 个匹配项")
+    
+    return {
+        "success": True,
+        "data": matches,
+        "count": len(matches),
+        "query": query,
+    }
 
 
 @mcp.tool()
@@ -191,9 +276,7 @@ async def get_item_price(
             "/open/cs2/v1/price/single",
             params={"marketHashName": market_hash_name},
         )
-    await ctx.log(
-        f"get_item_price 调用了 SteamDT /open/cs2/v1/price/single, marketHashName={market_hash_name}"
-    )
+    await ctx.log("info", f"get_item_price 调用了 SteamDT /open/cs2/v1/price/single, marketHashName={market_hash_name}")
     return data
 
 
@@ -204,7 +287,9 @@ async def get_item_price_history(
     days: int = 30,
 ) -> Dict[str, Any]:
     """
-    查询指定饰品最近若干天的价格历史。
+    查询指定饰品最近若干天的价格历史（均价数据）。
+
+    文档地址: https://doc.steamdt.com/319748133e0
 
     参数:
       - market_hash_name: Steam 市场的 market_hash_name
@@ -218,120 +303,17 @@ async def get_item_price_history(
 
     config = SteamDTConfig.from_env()
     async with get_client(config) as client:
+        # 根据官方文档 https://doc.steamdt.com/319748133e0，接口路径是 /open/cs2/v1/price/avg
         data = await _fetch_json(
             client,
             "GET",
-            "/v1/item/price_history",  # TODO: 按实际文档修改
+            "/open/cs2/v1/price/avg",
             params={"marketHashName": market_hash_name, "days": days},
         )
-    await ctx.log(
-        f"get_item_price_history 调用了 SteamDT，market_hash_name={market_hash_name}, days={days}"
-    )
+    await ctx.log("info", f"get_item_price_history 调用了 SteamDT /open/cs2/v1/price/avg, market_hash_name={market_hash_name}, days={days}")
     return data
-
-
-@mcp.tool()
-async def analyze_item_trend(
-    ctx: Context,
-    market_hash_name: str,
-    days: int = 30,
-) -> Dict[str, Any]:
-    """
-    基于指定天数的历史价格，对饰品做一个简单趋势分析（仅为客观描述，不构成任何推荐或投资建议）。
-
-    该工具会调用 get_item_price_history，然后在本地做一些轻量级计算，如：
-      - 起始价 / 结束价
-      - 涨跌幅（百分比）
-      - 简单的波动（最大、最小、均值）
-
-    返回:
-      - summary: 一段偏中性的中文总结，主要描述价格走势和波动情况
-      - stats: 一些基础统计数据，用于需要更细节分析的场景
-      - raw: 原始历史数据（可选，视返回体大小与隐私需求决定是否截断）
-    """
-    if days <= 1:
-        raise ValueError("为了有意义的趋势分析，days 建议至少大于 1。")
-
-    # 先拿到历史数据（这里直接复用上面的工具逻辑）
-    config = SteamDTConfig.from_env()
-    async with get_client(config) as client:
-        history = await _fetch_json(
-            client,
-            "GET",
-            "/v1/item/price_history",  # TODO: 按实际文档修改
-            params={"marketHashName": market_hash_name, "days": days},
-        )
-
-    # 下面假设 history 中有一个价格时间序列字段，例如:
-    # {"data": [{"time": "...", "price": 123.45}, ...]}
-    # 实际字段名请根据文档调整。
-    series: List[Dict[str, Any]] = []
-    if isinstance(history, dict):
-        raw_series = history.get("data") or history.get("prices") or []
-        if isinstance(raw_series, list):
-            for item in raw_series:
-                if not isinstance(item, dict):
-                    continue
-                price = item.get("price")
-                if isinstance(price, (int, float)):
-                    series.append(item)
-
-    if len(series) < 2:
-        return {
-            "summary": f"在最近 {days} 天内可用的价格点太少，无法进行有效趋势分析。",
-            "stats": {},
-            "raw": history,
-        }
-
-    prices = [float(p["price"]) for p in series]
-    first = prices[0]
-    last = prices[-1]
-    minimum = min(prices)
-    maximum = max(prices)
-    avg = sum(prices) / len(prices)
-    change_abs = last - first
-    change_pct = (change_abs / first) * 100 if first != 0 else 0.0
-
-    trend: str
-    if change_pct > 5:
-        trend = "整体呈上升趋势"
-    elif change_pct < -5:
-        trend = "整体呈下降趋势"
-    else:
-        trend = "整体相对平稳，涨跌幅不大"
-
-    volatility = maximum - minimum
-
-    summary = (
-        f"对饰品 {market_hash_name} 最近 {days} 天的价格走势客观描述如下：\n"
-        f"- 起始价格约为 {first:.2f}\n"
-        f"- 最新价格约为 {last:.2f}\n"
-        f"- 总体涨跌幅约为 {change_pct:.2f}%（{trend}）\n"
-        f"- 期间最高价约为 {maximum:.2f}，最低价约为 {minimum:.2f}，"
-        f"区间波动约为 {volatility:.2f}\n"
-        f"- 平均价格约为 {avg:.2f}\n\n"
-        "以上内容仅为基于历史价格的客观统计与描述，不构成任何投资、交易或饰品推荐。"
-    )
-
-    await ctx.log(
-        f"analyze_item_trend 对 {market_hash_name} 做了简单趋势分析，days={days}, points={len(series)}"
-    )
-
-    return {
-        "summary": summary,
-        "stats": {
-            "first": first,
-            "last": last,
-            "change_abs": change_abs,
-            "change_pct": change_pct,
-            "min": minimum,
-            "max": maximum,
-            "avg": avg,
-            "volatility_abs": volatility,
-            "points": len(series),
-        },
-        "raw": history,
-    }
+    await ctx.log("info", f"get_item_price_history 调用了 SteamDT /open/cs2/v1/price/average, market_hash_name={market_hash_name}, days={days}")
+    return data
 
 
 @mcp.tool()
@@ -370,9 +352,7 @@ async def get_item_prices_batch(
             "/open/cs2/v1/price/batch",
             json_data={"marketHashNames": market_hash_names},
         )
-    await ctx.log(
-        f"get_item_prices_batch 调用了 SteamDT /open/cs2/v1/price/batch, count={len(market_hash_names)}"
-    )
+    await ctx.log("info", f"get_item_prices_batch 调用了 SteamDT /open/cs2/v1/price/batch, count={len(market_hash_names)}")
     return data
 
 
@@ -410,9 +390,7 @@ async def get_item_wear_by_inspect_url(
             "/open/cs2/v1/wear",
             json_data={"inspectUrl": inspect_url},
         )
-    await ctx.log(
-        f"get_item_wear_by_inspect_url 调用了 SteamDT /open/cs2/v1/wear, inspectUrl={inspect_url[:50]}..."
-    )
+    await ctx.log("info", f"get_item_wear_by_inspect_url 调用了 SteamDT /open/cs2/v1/wear, inspectUrl={inspect_url[:50]}...")
     return data
 
 
@@ -449,15 +427,32 @@ async def get_item_wear_by_asmd(
             "/open/cs2/v2/wear",
             json_data=asmd_params,
         )
-    await ctx.log(
-        f"get_item_wear_by_asmd 调用了 SteamDT /open/cs2/v2/wear"
-    )
+    await ctx.log("info", f"get_item_wear_by_asmd 调用了 SteamDT /open/cs2/v2/wear")
     return data
 
 
 def main():
     """MCP 服务器入口函数，用于命令行和 PyPI 安装后的直接调用。"""
-    mcp.run()
+    import asyncio
+    import sys
+    
+    # 确保环境变量已设置（用于调试）
+    if not os.getenv("STEAMDT_API_KEY"):
+        print("警告: STEAMDT_API_KEY 环境变量未设置", file=sys.stderr)
+        sys.stderr.flush()
+    
+    # 启动 stdio 模式的 MCP 服务器
+    # FastMCP 会自动处理工具注册和 MCP 协议通信
+    try:
+        asyncio.run(mcp.run_stdio_async())
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        print(f"错误: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.stderr.flush()
+        raise
 
 
 if __name__ == "__main__":
