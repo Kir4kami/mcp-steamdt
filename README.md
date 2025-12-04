@@ -2,6 +2,12 @@
 
 一个基于 Python 的 SteamDT 行情 / 数据分析 MCP 服务端，用于让支持 MCP 的大模型（如 Claude 等）可以直接调用 SteamDT 的开放接口，查询饰品行情并做基础分析。
 
+### 前置要求
+
+- Python 3.10 或更高版本
+- 已安装 git（用于方式一安装）
+- SteamDT API 密钥（在 [SteamDT 官网](https://steamdt.com) 注册后获取）
+
 ### 快速开始
 
 #### 最简单的方式（推荐）✨
@@ -122,13 +128,26 @@ uv pip install -r requirements.txt
 
 ### 配置
 
-1. 在 SteamDT 官网注册并在「个人中心 - API 管理」获取你的 `API_KEY`。
-2. 在项目根目录新建一个 `.env` 文件：
+#### 方式一（直接安装）的配置
+
+对于方式一（`pip install git+...`），**只需要在 MCP 客户端配置中设置环境变量**（如上方的快速开始示例），无需创建 `.env` 文件。
+
+#### 方式二/三（开发模式）的配置
+
+对于开发模式，你可以选择以下两种方式之一：
+
+**方式 A：使用环境变量（推荐）**
+- 在 MCP 客户端配置中设置环境变量（与方式一相同）
+
+**方式 B：使用 .env 文件（可选）**
+- 在项目根目录新建一个 `.env` 文件：
 
 ```bash
 STEAMDT_API_KEY=你的密钥
-STEAMDT_BASE_URL=https://open.steamdt.com  # 按官方文档调整（当前示例接口使用 open.steamdt.com）
+STEAMDT_BASE_URL=https://open.steamdt.com  # 可选，默认值已配置
 ```
+
+> **注意**：如果同时在 MCP 客户端配置和 `.env` 文件中设置了环境变量，MCP 客户端配置中的值会优先使用。
 
 ### 自动缓存机制
 
@@ -244,40 +263,3 @@ python -m steamdt_mcp.server
 - "对比这几个饰品的价格，看看哪个性价比更高"
 
 模型会自动调用 MCP 中的工具，与 SteamDT 通信获取数据。
-
-### 常见问题
-
-#### Q: 如何确认 MCP 服务器是否正常运行？
-
-A: 在项目目录下运行 `python -m steamdt_mcp.server`，如果看到服务器启动信息且没有报错，说明配置正确。
-
-#### Q: 虚拟环境中的 Python 路径怎么找？
-
-A: 
-- Windows: 虚拟环境目录下的 `Scripts\python.exe`
-- macOS/Linux: 虚拟环境目录下的 `bin/python`
-
-#### Q: 如何更新基础信息缓存？
-
-A: 调用 `get_item_base_info` 时设置 `force_refresh=True`，但需注意该接口每天只能调用一次。
-
-#### Q: 批量查询最多可以查询多少个饰品？
-
-A: 请参考 SteamDT 官方文档的接口限制。建议每次查询不超过 10-20 个饰品。
-
-#### Q: 磨损度查询返回的 taskId 是什么？
-
-A: 某些查询可能是异步的，返回 `taskId` 表示任务已提交。你可以通过 `taskId` 查询结果，或等待回调通知（如果配置了 `notifyUrl`）。
-
-### 开发计划
-
-- [x] Python 版 MCP 基础骨架
-- [x] 基础信息与价格查询工具
-- [x] 批量价格查询
-- [x] 磨损度查询（检视链接 + ASMD 参数）
-- [x] 价格历史查询（30天均价）
-- [x] 饰品名称搜索功能
-
-欢迎 issue / PR 一起完善～ 
-
-

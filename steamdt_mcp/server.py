@@ -84,6 +84,130 @@ def _save_base_info_cache(data: Dict[str, Any]) -> None:
     )
 
 
+def _normalize_text(text: str) -> str:
+    """标准化文本：转小写、移除标点符号和空格。"""
+    import re
+    # 移除标点符号和空格，只保留字母、数字和中文字符
+    normalized = re.sub(r'[^\w\u4e00-\u9fff]', '', text.lower())
+    return normalized
+
+
+def _extract_keywords(query: str) -> List[str]:
+    """从查询字符串中提取关键词（支持中英文混合）。"""
+    import re
+    # 移除标点符号和多余空格
+    cleaned = re.sub(r'[^\w\u4e00-\u9fff\s]', ' ', query)
+    # 按空格分割，过滤空字符串
+    keywords = [kw.strip().lower() for kw in cleaned.split() if kw.strip()]
+    # 如果没有空格分割的关键词，尝试按字符类型分割（中英文混合）
+    if not keywords or (len(keywords) == 1 and not ' ' in query):
+        # 使用更智能的分割：按字符类型边界分割（中文字符和英文字符/数字的边界）
+        # 这个正则会匹配：连续的中文字符 或 连续的英文字母/数字
+        parts = re.findall(r'[\u4e00-\u9fff]+|[a-zA-Z0-9]+', query.lower())
+        if parts:
+            keywords = [p for p in parts if p]
+    return keywords if keywords else [query.lower()]
+
+
+def _weapon_alias_match(query: str, item_name: str) -> bool:
+    """检查武器别名是否匹配（如 'usp' 匹配 'USP消音版' 或 'USP-S'）。"""
+    query_lower = query.lower()
+    item_lower = item_name.lower()
+    
+    # 武器别名映射表
+    aliases = {
+        'usp': ['usp', 'usp-s', 'usp消音版', 'usps', 'usp消音'],
+        'ak': ['ak', 'ak47', 'ak-47'],
+        'm4': ['m4', 'm4a4', 'm4a1', 'm4a1-s', 'm4a1s'],
+        'awp': ['awp'],
+        'glock': ['glock', 'glock-18'],
+        'p250': ['p250'],
+        'tec9': ['tec-9', 'tec9'],
+        'mp7': ['mp7', 'mp-7'],
+    }
+    
+    # 检查查询词是否是某个武器的别名
+    for weapon, alias_list in aliases.items():
+        if query_lower in alias_list:
+            # 检查物品名是否包含该武器的任何别名
+            for alias in alias_list:
+                if alias in item_lower:
+                    return True
+    
+    return False
+
+
+def _smart_match(query: str, item_name: str, market_hash_name: str) -> bool:
+    """
+    智能匹配：支持分词匹配、忽略标点符号、武器别名。
+    
+    匹配策略（按优先级）：
+    1. 完全包含匹配（原有逻辑）
+    2. 分词匹配：查询的所有关键词都在物品名中出现
+    3. 武器别名匹配
+    4. 标准化后的包含匹配（忽略标点符号）
+    """
+    query_lower = query.lower()
+    name_lower = item_name.lower()
+    market_lower = market_hash_name.lower()
+    
+    # 策略1: 完全包含匹配（原有逻辑，优先级最高）
+    if query_lower in name_lower or query_lower in market_lower:
+        return True
+    
+    # 策略2: 分词匹配
+    keywords = _extract_keywords(query)
+    if len(keywords) > 1:  # 只有多个关键词时才使用分词匹配
+        # 标准化文本以便匹配
+        normalized_name = _normalize_text(item_name)
+        normalized_market = _normalize_text(market_hash_name)
+        
+        # 检查所有关键词是否都在物品名中出现
+        all_keywords_match = True
+        for keyword in keywords:
+            normalized_keyword = _normalize_text(keyword)
+            if (normalized_keyword not in normalized_name and 
+                normalized_keyword not in normalized_market):
+                all_keywords_match = False
+                break
+        
+        if all_keywords_match:
+            return True
+    
+    # 策略3: 武器别名匹配 + 其他关键词匹配
+    keywords = _extract_keywords(query)
+    if len(keywords) > 1:
+        # 检查是否有武器别名匹配，同时其他关键词也在物品名中
+        weapon_matched = False
+        other_keywords_matched = True
+        
+        for kw in keywords:
+            # 检查是否是武器别名
+            if _weapon_alias_match(kw, item_name) or _weapon_alias_match(kw, market_hash_name):
+                weapon_matched = True
+            else:
+                # 检查其他关键词是否在物品名中
+                normalized_kw = _normalize_text(kw)
+                normalized_name = _normalize_text(item_name)
+                normalized_market = _normalize_text(market_hash_name)
+                if normalized_kw not in normalized_name and normalized_kw not in normalized_market:
+                    other_keywords_matched = False
+                    break
+        
+        if weapon_matched and other_keywords_matched:
+            return True
+    
+    # 策略4: 标准化后的包含匹配（忽略标点符号）
+    normalized_query = _normalize_text(query)
+    normalized_name = _normalize_text(item_name)
+    normalized_market = _normalize_text(market_hash_name)
+    
+    if normalized_query in normalized_name or normalized_query in normalized_market:
+        return True
+    
+    return False
+
+
 @mcp.tool()
 async def get_item_base_info(
     ctx: Context,
@@ -213,8 +337,7 @@ async def search_item_by_name(
             "count": 0,
         }
     
-    # 搜索匹配的饰品（不区分大小写）
-    query_lower = query.lower()
+    # 搜索匹配的饰品（使用智能匹配）
     matches = []
     
     for item in items:
@@ -224,8 +347,8 @@ async def search_item_by_name(
         name = item.get("name", "")
         market_hash_name = item.get("marketHashName", "")
         
-        # 检查是否匹配（中文名或英文名）
-        if query_lower in name.lower() or query_lower in market_hash_name.lower():
+        # 使用智能匹配算法
+        if _smart_match(query, name, market_hash_name):
             matches.append({
                 "name": name,
                 "marketHashName": market_hash_name,
@@ -311,8 +434,6 @@ async def get_item_price_history(
             params={"marketHashName": market_hash_name, "days": days},
         )
     await ctx.log("info", f"get_item_price_history 调用了 SteamDT /open/cs2/v1/price/avg, market_hash_name={market_hash_name}, days={days}")
-    return data
-    await ctx.log("info", f"get_item_price_history 调用了 SteamDT /open/cs2/v1/price/average, market_hash_name={market_hash_name}, days={days}")
     return data
 
 
