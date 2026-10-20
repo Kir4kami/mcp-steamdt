@@ -1,265 +1,95 @@
-## SteamDT MCP (Python)
+# SteamDT：CS2 饰品行情 Skill
 
-一个基于 Python 的 SteamDT 行情 / 数据分析 MCP 服务端，用于让支持 MCP 的大模型（如 Claude 等）可以直接调用 SteamDT 的开放接口，查询饰品行情并做基础分析。
+通过 **SteamDT 官方 MCP + SteamDT Skill**，用中文查询饰品价格、比较平台行情、查看七日均价和 K 线，以及了解 CS2 大盘。
 
-### 前置要求
+本仓库保留原有 Python MCP 实现；新版主要入口为 [`skills/steamdt/SKILL.md`](skills/steamdt/SKILL.md)。使用新版不需要安装 Python 依赖或维护饰品基础信息缓存。
 
-- Python 3.10 或更高版本
-- 已安装 git（用于方式一安装）
-- SteamDT API 密钥（在 [SteamDT 官网](https://steamdt.com) 注册后获取）
+## 快速开始
 
-### 快速开始
+### 1. 接入官方 MCP
 
-#### 最简单的方式（推荐）✨
+按[官方接入文档](https://doc.steamdt.com/9475656m0)申请 API Key，在客户端添加远程 MCP：
 
-1. **直接从 GitHub 安装**
-   ```bash
-   pip install git+https://github.com/Kir4kami/mcp-steamdt.git
-   ```
+- 服务名称：`steamdt`
+- 地址：`https://mcp.steamdt.com/mcp`
+- 传输方式：Streamable HTTP
+- 鉴权：`Authorization: Bearer <APIKEY>`
 
-2. **在 MCP 客户端中配置**
-   
-   编辑 Claude Desktop 配置文件（或其他 MCP 客户端），添加：
-   ```json
-   {
-     "mcpServers": {
-       "steamdt": {
-         "command": "python",
-         "args": ["-m", "steamdt_mcp.server"],
-         "env": {
-           "STEAMDT_API_KEY": "你的密钥"
-         }
-       }
-     }
-   }
-   ```
+API Key 只保存在本机用户级客户端配置或凭证存储中，不要放进本仓库、Skill 或聊天内容。
 
-3. **开始使用**
-   
-   重启客户端后，就可以在对话中让 AI 查询饰品价格、磨损度等信息了！
+Codex 支持在用户级 `~/.codex/config.toml` 配置；以下示例从客户端进程环境读取密钥：
 
-> **提示**：`pip install git+...` 会自动下载并安装最新版本，无需手动克隆仓库。
-
-#### 开发模式（需要修改代码）
-
-如果你想修改代码或参与开发，可以克隆仓库后按照 [安装](#安装) 部分的说明进行配置。
-
-> ⚠️ 注意：
-> - 本项目未内置你的 API 密钥，也不会帮你绕过任何平台限制。请在遵守 SteamDT 官方服务条款的前提下使用。
-> - 本项目**只提供数据获取与基础统计功能，不做任何主观推荐或投资建议**；如何解读和使用这些数据，应由上层应用或用户自行决定。
-
-### 功能概览
-
-#### 基础信息与价格查询
-- `get_item_base_info`：获取所有饰品的基础信息（名称、marketHashName 等）。**自动管理本地缓存**，首次调用会请求 API 并保存，后续优先使用缓存，无需担心每天限 1 次的限制。
-- `search_item_by_name`：根据中文名或英文名搜索饰品，返回匹配的 `market_hash_name`。特别适合只知道中文名的情况。
-- `get_item_price`：根据 `market_hash_name` 查询单个饰品的当前价格信息（每分钟60次）。
-- `get_item_prices_batch`：批量查询多个饰品的价格信息（每分钟1次）。
-- `get_item_price_history`：查询指定饰品最近若干天的价格历史（30天均价数据）。
-
-#### 磨损度查询
-- `get_item_wear_by_inspect_url`：通过检视链接查询饰品的磨损度相关数据（每小时36000次）。
-- `get_item_wear_by_asmd`：通过 ASMD 参数查询饰品的磨损度相关数据（每小时36000次）。
-
-#### 价格历史查询
-- `get_item_price_history`：查询最近若干天的价格历史数据（30天均价）。根据 `market_hash_name` 和 `days` 参数查询各平台的30天平均价格。
-
-> 所有接口均基于 SteamDT 官方文档实现：`https://doc.steamdt.com/`。权限限制请参考官方文档。
-
-### 安装
-
-#### 方式一：直接从 GitHub 安装（推荐，最简单）✨
-
-无需克隆仓库，直接用 pip 从 GitHub 安装：
-
-```bash
-pip install git+https://github.com/Kir4kami/mcp-steamdt.git
+```toml
+[mcp_servers.steamdt]
+url = "https://mcp.steamdt.com/mcp"
+bearer_token_env_var = "STEAMDT_API_KEY"
 ```
 
-然后在 MCP 客户端配置中使用：
+在本机设置 `STEAMDT_API_KEY`，确保启动客户端的进程能够读取它，再重启或重载客户端。项目根目录的 `.env` 不会自动为远程 MCP 配置提供环境变量。也可使用客户端支持的鉴权请求头设置。详见 [Codex MCP 文档](https://developers.openai.com/codex/mcp)。
 
-```json
-{
-  "mcpServers": {
-    "steamdt": {
-      "command": "python",
-      "args": ["-m", "steamdt_mcp.server"],
-      "env": {
-        "STEAMDT_API_KEY": "你的密钥"
-      }
-    }
-  }
-}
+连接后检查工具。2026-10-20 实测官方提供 **6 个**：
+
+`search_items`、`get_item_prices`、`get_item_average_price_7d`、`get_item_kline`、`get_broad_index`、`get_broad_kline`。
+
+清单可能随服务升级变化；确认所需工具可用即可，不要求数量固定。
+
+### 2. 安装 Skill
+
+将仓库中的整个 `skills/steamdt` 文件夹复制到 Codex 的用户 Skill 目录：
+
+- Windows：`%USERPROFILE%\.codex\skills\steamdt`
+- macOS / Linux：`~/.codex/skills/steamdt`
+- 若自定义了 `CODEX_HOME`：使用其下的 `skills/steamdt`
+
+如果目标目录已经存在，先比较内容再更新。重启或重载客户端后，在新对话中用 `$steamdt` 调用，也可让客户端自动匹配相关请求。Skill 文件中的依赖声明用于说明所需服务，不会替你填写凭证或保证自动完成 MCP 配置。
+
+### 3. 开始查询
+
+```text
+使用 $steamdt，查一下 USP 印花集现在多少钱。
 ```
 
-#### 方式二：使用 Git Clone（开发模式）
+名称存在多个磨损、暗金或纪念品版本时，Skill 会根据上下文筛选，仍有歧义再请你选择。
 
-如果你想修改代码或参与开发：
-
-```bash
-# 克隆仓库
-git clone https://github.com/Kir4kami/mcp-steamdt.git
-cd mcp-steamdt
-
-# 创建虚拟环境（推荐）
-python -m venv .venv
-
-# 激活虚拟环境
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
-source .venv/bin/activate
-
-# 安装依赖
-pip install -r requirements.txt
+```text
+使用 $steamdt，查询 AK-47 | Case Hardened (Field-Tested) 的近七日均价。
+使用 $steamdt，对比同一饰品在 BUFF 和悠悠有品的当前在售与求购报价。
+使用 $steamdt，看看这件饰品最近三十天的日 K 走势，以及今天大盘的变化。
 ```
 
-#### 方式三：使用 uv（开发模式，更快）
+## 数据口径
 
-```bash
-# 克隆仓库
-git clone https://github.com/Kir4kami/mcp-steamdt.git
-cd mcp-steamdt
+- 在售底价、最高求购价（可能附条件）与七日均价分别展示；报价不等于成交价。
+- 最高求购可能限制具体磨损值（float）等条件，与在售底价不一定对应同规格货品；求购价高于在售价不直接判为异常或套利机会，具体条件需到平台核对。
+- 七日均价工具不支持任意天数历史序列。走势使用 K 线，并核对实际时间覆盖。
+- 本项目由用户确认饰品价格统一使用人民币元（CNY），即使响应未标币种也按此展示；若响应明确指定其他币种则以实际为准。大盘指数不标货币单位，缺少数据更新时间时明确说明。
+- 不把平台价差直接解释为可获得的套利利润，也不把总体均价擅自重算成平台均价的平均数。
+- 凭证错误或达到配额时停止相关请求；官方 MCP 与直接 API 共用 API Key 配额。
 
-# 创建虚拟环境并安装依赖
-uv venv
-uv pip install -r requirements.txt
-```
+## 验证与维护
 
-### 配置
+更新 Skill 后可使用 Codex 自带 skill-creator 的 `scripts/quick_validate.py` 检查其结构。行为验收覆盖：
 
-#### 方式一（直接安装）的配置
+| 场景 | 预期行为 |
+| --- | --- |
+| 中文名匹配多个版本 | 搜索并筛选；无法唯一确认时询问，不自动选第一项 |
+| 完整英文名查七日均价 | 直接调用均价工具，不额外搜索或获取 K 线 |
+| 返回价格未标明币种 | 按本项目确认口径展示人民币元；不将大盘指数标成元 |
+| 在售 594 元、最高求购 716 元 | 说明可能有磨损等订单条件差异，需到平台核对；不标异常、不推断套利或保证可卖出 |
+| 请求三十天涨跌，但 K 线覆盖不足 | 说明实际覆盖，不将七日均价当作三十天序列 |
+| 凭证拒绝或配额耗尽 | 停止请求，不切换接口继续尝试 |
+| 工具未加载 | 说明连接或重载步骤，不声称已查询 |
 
-对于方式一（`pip install git+...`），**只需要在 MCP 客户端配置中设置环境变量**（如上方的快速开始示例），无需创建 `.env` 文件。
+官方接入和均价查询已于 2026-10-20 在本机独立 MCP 连接中验证；这不代表 Skill 已安装，或实时价格、K 线和大盘工具已全部完成实测。参数与来源见 [工具参考](skills/steamdt/references/tools.md)。
 
-#### 方式二/三（开发模式）的配置
+## 原有 Python MCP
 
-对于开发模式，你可以选择以下两种方式之一：
+`steamdt_mcp/`、`scripts/cache_base_info.py`、依赖文件和 Python 安装入口均保留。本轮未修改旧服务行为；它可以作为后续磨损查询、批量处理等能力的代码基础。
 
-**方式 A：使用环境变量（推荐）**
-- 在 MCP 客户端配置中设置环境变量（与方式一相同）
+旧服务的安装与使用方式见 [旧版 MCP 文档](docs/legacy-mcp.md)。其中 `get_item_price_history` 对均价接口的历史描述与当前官方文档不一致，不应作为任意天数历史数据来源；使用前需单独适配与验证。
 
-**方式 B：使用 .env 文件（可选）**
-- 在项目根目录新建一个 `.env` 文件：
+## 官方资料
 
-```bash
-STEAMDT_API_KEY=你的密钥
-STEAMDT_BASE_URL=https://open.steamdt.com  # 可选，默认值已配置
-```
-
-> **注意**：如果同时在 MCP 客户端配置和 `.env` 文件中设置了环境变量，MCP 客户端配置中的值会优先使用。
-
-### 自动缓存机制
-
-`get_item_base_info` 工具**已内置自动缓存功能**，用户无需手动处理：
-
-- **首次调用**：会自动请求 SteamDT API，并将结果保存到本地 `steam_items_base.json`
-- **后续调用**：优先使用本地缓存，无需再次请求 API
-- **智能降级**：如果今天已调用过 API（返回 4005 错误），会自动返回缓存（如果有）
-
-这意味着：
-- ✅ 用户无需手动运行脚本或管理缓存文件
-- ✅ 不用担心每天限 1 次的限制
-- ✅ 首次调用后，后续查询都是秒级响应
-
-> **可选**：如果你需要手动刷新缓存，可以运行 `python scripts/cache_base_info.py`，或调用 `get_item_base_info` 时设置 `force_refresh=True`（但需等待第二天才能再次调用 API）。 
-
-
-> `STEAMDT_BASE_URL` 可选，如果不设置将使用代码里的默认值。
-
-### 运行 MCP 服务器
-
-```bash
-python -m steamdt_mcp.server
-```
-
-这会以标准 MCP 协议的方式启动一个命令行服务器，支持被 MCP 客户端（例如支持 MCP 的 IDE、聊天工具或代理）调用。
-
-### 在 MCP 客户端中配置
-
-#### Claude Desktop (推荐)
-
-1. 找到 Claude Desktop 的配置文件位置：
-   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-2. 编辑配置文件，添加以下内容：
-
-```json
-{
-  "mcpServers": {
-    "steamdt": {
-      "command": "python",
-      "args": ["-m", "steamdt_mcp.server"],
-      "env": {
-        "STEAMDT_API_KEY": "你的实际密钥",
-        "STEAMDT_BASE_URL": "https://open.steamdt.com"
-      }
-    }
-  }
-}
-```
-
-> **注意**：如果使用虚拟环境，需要将 `command` 改为虚拟环境中 Python 的完整路径，例如：
-> - Windows: `"command": "F:\\mymcp\\mcp-steamdt\\.venv\\Scripts\\python.exe"`
-> - macOS/Linux: `"command": "/path/to/mcp-steamdt/.venv/bin/python"`
-
-3. 重启 Claude Desktop，MCP 服务器会自动启动。
-
-#### Cursor IDE
-
-在 Cursor 的设置中，找到 MCP 配置，添加：
-
-```json
-{
-  "mcpServers": {
-    "steamdt": {
-      "command": "python",
-      "args": ["-m", "steamdt_mcp.server"],
-      "env": {
-        "STEAMDT_API_KEY": "你的实际密钥",
-        "STEAMDT_BASE_URL": "https://open.steamdt.com"
-      }
-    }
-  }
-}
-```
-
-#### 其他 MCP 客户端
-
-对于其他支持 MCP 的客户端，配置格式类似：
-
-```json
-{
-  "name": "steamdt",
-  "command": "python",
-  "args": ["-m", "steamdt_mcp.server"],
-  "env": {
-    "STEAMDT_API_KEY": "你的实际密钥",
-    "STEAMDT_BASE_URL": "https://open.steamdt.com"
-  }
-}
-```
-
-### 使用示例
-
-配置完成后，你就可以在聊天中让模型执行类似指令：
-
-#### 基础查询
-
-- "查询 `AWP | Pit Viper (Minimal Wear)` 的当前价格"
-- "批量查询这几个饰品的价格：`AK-47 | Redline (Field-Tested)`, `M4A4 | Howl (Factory New)`"
-- "获取所有饰品的基础信息，帮我找一个叫 'Dragon Lore' 的饰品"
-
-#### 磨损度查询
-
-- "通过这个检视链接查询磨损度：`steam://rungame/730/...`"
-- "使用 ASMD 参数查询磨损度：`{...}`"
-
-#### 价格历史查询
-
-- "查询 `AK-47 | The Empress (Factory New)` 最近 30 天的价格历史"
-- "对比这几个饰品的价格，看看哪个性价比更高"
-
-模型会自动调用 MCP 中的工具，与 SteamDT 通信获取数据。
+- [开放平台文档](https://doc.steamdt.com/)
+- [官方 MCP 接入与工具说明](https://doc.steamdt.com/9475656m0)
+- [接口权限列表](https://doc.steamdt.com/6369437m0)
